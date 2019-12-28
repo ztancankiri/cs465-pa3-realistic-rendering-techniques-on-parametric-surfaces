@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Realistic Rendering Techniques on Parametric Surfaces</title>
+
+        <script type="text/javascript" src="js/jquery-3.4.1.min.js"></script>
+        <link rel="stylesheet" href="css/jquery-ui.min.css">
+        <script src="js/jquery-ui.min.js"></script>
+
+        <link rel="stylesheet" href="css/style.css">
+
+        <script id="vertexShader" type="x-shader/x-vertex">
+            precision mediump float;
+
+            attribute vec3 vPosition;
+            attribute vec2 vTexCoord;
+            attribute vec3 vNormal;
+
+            varying vec2 fTexCoord;
+
+            uniform mat4 modelViewMatrix;
+            uniform mat4 projectionMatrix;
+            uniform mat4 normalMat;
+
+            uniform float mode;
+
+            varying vec3 normalInterp;
+            varying vec3 vertPos;
+
+            uniform vec3 lightPos;
+            varying vec4 color;
+
+            uniform float Ka;
+            uniform float Kd;
+            uniform float Ks;
+            uniform float shininessVal; // Shininess
+
+            void main() {
+                vec4 vertPos4 = modelViewMatrix * vec4(vPosition, 1.0);
+                vertPos = vec3(vertPos4);
+                normalInterp = vec3(normalMat * vec4(vNormal, 0.0));
+                gl_Position = projectionMatrix * vertPos4;
+
+                if (mode == 0.0) { // Per Vertex based Gourad Shading
+                    vec3 N = normalize(normalInterp);
+                    vec3 L = normalize(lightPos - vertPos);
+
+                    // Lambert's cosine law
+                    float lambertian = max(dot(N, L), 0.0);
+                    float specular = 0.0;
+                    
+                    if (lambertian > 0.0) {
+                        vec3 R = reflect(-L, N);
+                        vec3 V = normalize(-vertPos);
+                        // Compute the specular term
+                        float specAngle = max(dot(R, V), 0.0);
+                        specular = pow(specAngle, shininessVal);
+                    }
+
+                    // ambient + diffuse + specular
+                    color = vec4(   Ka * vec3(1.0, 0.0, 0.0) + 
+                                    Kd * lambertian * vec3(1.0, 1.0, 1.0) +
+                                    Ks * specular * vec3(1.0, 1.0, 1.0), 1.0);
+                }
+
+                fTexCoord = vTexCoord;
+            }
+        </script>
+
+        <script id="fragmentShader" type="x-shader/x-fragment">
+            precision mediump float;
+
+            varying vec2 fTexCoord;
+
+            uniform sampler2D texture;
+            uniform float wireMode;
+
+            uniform float mode;
+
+            varying vec4 color;
+
+            varying vec4 colorP;
+
+            varying vec3 normalInterp;
+            varying vec3 vertPos;
+            uniform vec3 lightPos;
+
+            uniform float Ka;
+            uniform float Kd;
+            uniform float Ks;
+            uniform float shininessVal;
+
+            void main() {
+                vec4 texel = texture2D(texture, fTexCoord);
+                
+                if (wireMode == 0.0) {
+                    gl_FragColor = vec4(0.0, 0.5, 0.0, 1.0);
+                }
+                else {
+                    if (mode == 0.0) {
+                        gl_FragColor = texel * color;
+                    }
+                    else if (mode == 1.0) { // Per Fragment based Phong Shading
+                        vec3 N = normalize(normalInterp);
+                        vec3 L = normalize(lightPos - vertPos);
+                        float lambertian = max(dot(N, L), 0.0);
+                        float specular = 0.0;
+                        
+                        if (lambertian > 0.0) {
+                            vec3 R = reflect(-L, N);
+                            vec3 V = normalize(-vertPos);
+                            // Compute the specular term
+                            float specAngle = max(dot(R, V), 0.0);
+                            specular = pow(specAngle, shininessVal);                        
+                        }
+        
+                        // ambient + diffuse + specular
+                        gl_FragColor = texel * vec4(   Ka * vec3(1.0, 0.0, 0.0) + 
+                                                        Kd * lambertian * vec3(1.0, 1.0, 1.0) +
+                                                        Ks * specular * vec3(1.0, 1.0, 1.0), 1.0);
+                    }
+                }
+            }
+        </script>
+
+        <script type="text/javascript" src="webgl-utils/webgl-utils.js"></script>
+        <script type="text/javascript" src="webgl-utils/initShaders.js"></script>
+        <script type="text/javascript" src="webgl-utils/MV.js"></script>
+        <script type="module" src="parametric-surfaces/main.js"></script>
+    </head>
+    <body>
+        <div class="game-container">
+            <h1>Realistic Rendering Techniques on Parametric Surfaces</h1>
+            
+
+            <div id="control-box" class="ui card">
+                <div class="content">
+
+                    <table>
+                        <tr>
+                            <td>
+                                <canvas id="render-surface" width="800" height="600">Oops ... your browser doesn't support the HTML5 canvas element</canvas>
+                            </td>
+                            <td>
+                                <div style="width: 500px;">
+                                    <p>Exponent 1</p><div id="exponent1" class="slider"></div> <br>
+                                    <p>Exponent 2</p><div id="exponent2" class="slider"></div> <br>
+                                    <p>Size</p><div id="size" class="slider"></div> <br>
+
+                                    <p>Ambient (Red)</p><div id="ka" class="slider"></div> <br>
+                                    <p>Diffuse</p><div id="kd" class="slider"></div> <br>
+                                    <p>Specular</p><div id="ks" class="slider"></div> <br>
+                                    <p>Shininess</p><div id="shin" class="slider"></div>
+                                </div>
+                            </td>
+                            
+                            <td>
+                                <p><b>* Use W, A, S, D for the camera rotation, 
+                                <br>* Use Q and E for camera zoom.</b></p>
+                                <ol class="selectable" id="shape">
+                                    <li class="ui-widget-content ui-selected" value="1">Supertoroid</li>
+                                    <li class="ui-widget-content" value="0" >Superhyperboloid of One Sheet</li>
+                                </ol>
+                                <br>
+                                <button type="button" id="toggleRotation">Toggle Rotation</button>
+                                <br><br>
+                                <ol class="selectable" id="shading">
+                                    <li class="ui-widget-content ui-selected" value="0">Gouraud Shaded (per vertex)</li>
+                                    <li class="ui-widget-content" value="1">Phong Shaded (per fragment)</li>
+                                </ol>
+                                <br>
+                                <button type="button" id="form">Go Wireframe</button>
+                                <br><br>
+                                <ol class="selectable" id="texture">
+                                    <li class="ui-widget-content ui-selected" value="0">Donut</li>
+                                    <li class="ui-widget-content" value="1">Iron Man</li>
+                                    <li class="ui-widget-content" value="2">Spider Man</li>
+                                    <li class="ui-widget-content" value="3">Batman</li>
+                                </ol>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                </div>
+            </div>
+        </div>
+
+        <img id="donut" src="textures/donut.png" width="0" height="0" crossorigin="Anonymous" />
+        <img id="ironman" src="textures/ironman.png" width="0" height="0" crossorigin="Anonymous" />
+        <img id="spiderman" src="textures/spiderman.png" width="0" height="0" crossorigin="Anonymous" />
+        <img id="batman" src="textures/batman.png" width="0" height="0" crossorigin="Anonymous" />
+    </body>
+</html>

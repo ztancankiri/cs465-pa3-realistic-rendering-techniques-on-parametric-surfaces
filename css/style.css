@@ -1,0 +1,17 @@
+#glCanvas {
+    border-radius: 5px;
+}
+
+.game-container {
+    margin-top: 15px;
+    margin-left: 15px;
+}
+
+.selectable .ui-selecting { background: #5b9bd5; }
+.selectable .ui-selected { background: #5b9bd5; color: white; }
+.selectable { list-style-type: none; margin: 0; padding: 0; width: 250px; cursor: pointer; }
+.selectable li { margin: 3px; padding: 0.4em; font-size: 1em; height: 15px; }
+
+td {
+    padding-left: 20px;
+}
